@@ -1,0 +1,124 @@
+#!/bin/bash
+
+##
+# Variables
+##
+PKG_MANAGER='apt-get -qq'   # change this if you need to
+USERNAME=x
+HOSTNAME=`hostname -f`      # change this if you need something special
+SSD="YES"                   # is a SSD used?
+DOTFILES_DIR='dots'
+DOTFILES_URL='https://github.com/jhx0/dotfiles.git'
+
+##
+# Color definitions
+##
+RED="\033[1;31m"
+GREEN="\033[1;32m"
+RESET="\033[0m"
+
+##
+# Functions
+##
+info() {
+    echo -e "[${RED}deb-mkdesk${RESET}] ${GREEN}::${RESET} $1"
+}
+
+##
+# Main script
+##
+
+#
+# install/setup sudo
+#
+setup_sudo() {
+	info "Setup sudo"
+	su -c "$PKG_MANAGER install sudo && echo \"x ALL=(ALL:ALL) NOPASSWD: ALL\" > /etc/sudoers.d/x"
+}
+
+#
+# install git
+#
+setup_git() {
+	info "Install git"
+	sudo $PKG_MANAGER install git -y
+}
+
+#
+# clone dotfiles and install them
+#
+setup_dotfiles() {
+	info "Clone and install dotfiles"
+	git clone $DOTFILES_URL $DOTFILES_DIR &>/dev/null
+	cd dots && ./install && cd ~
+}
+
+#
+# install / setup postfix
+#
+setup_postfix() {
+	info "Installing and configuring Postfix"
+	sudo debconf-set-selections <<< "postfix postfix/mailname string $HOSTNAME"
+	sudo debconf-set-selections <<< "postfix postfix/main_mailer_type string 'Local only'"
+	sudo $PKG_MANAGER install postfix -y
+}
+
+#
+# install all packages
+#
+install_pkgs() {
+	info "Install all packages"
+	sudo $PKG_MANAGER install $(cat ${DOTFILES_DIR}/.sys/debian-pkg) -y
+}
+
+#
+# setup ntp sync
+#
+setup_ntp() {
+	info "Setup NTP Synchronization"
+	sudo timedatectl set-ntp true
+	echo -e "[Time]\nNTP=de.pool.ntp.org\n" | sudo tee /etc/systemd/timesyncd.conf >/dev/null
+	sudo systemctl restart systemd-timesyncd
+}
+
+#
+# setup fstrim, if needed
+#
+setup_fstrim() {
+	info "Setup Filesystem Trim"
+	if [ "$SSD" == "YES" ]; then
+	    sudo systemctl enable fstrim.timer
+	fi
+}
+
+#
+# change grub settings
+#
+setup_grub() {
+	info "Setup Grub"
+	sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT\=\"quiet\"/GRUB_CMDLINE_LINUX_DEFAULT\=\"\"/g' /etc/default/grub
+    sudo update-grub2 &>/dev/null
+}
+
+setup_groups() {
+    info "Adding user to different groups"
+    sudo usermod -a -G kvm,libvirt,libvirt-qemu $USERNAME
+}
+
+main() {
+    setup_sudo
+    setup_git
+    setup_dotfiles
+    setup_postfix
+    install_pkgs
+    setup_ntp
+    setup_fstrim
+    setup_grub
+    setup_groups
+
+    info "Done. Have fun!"
+
+    exit 0
+}
+
+main
