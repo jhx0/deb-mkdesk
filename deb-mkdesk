@@ -11,6 +11,30 @@ DOTFILES_DIR='dots'
 DOTFILES_URL='https://github.com/jhx0/dotfiles.git'
 
 ##
+# External packages (Different software)
+##
+PAPER_URL='https://snwh.org/paper/download.php?owner=snwh&ppa=ppa&pkg=paper-icon-theme,18.04'
+
+##
+# External repos
+##
+VBOX_REPO='deb [arch=amd64] https://download.virtualbox.org/virtualbox/debian buster contrib'
+
+##
+# Sysctl config
+##
+SYSCTL_CONF="net.ipv4.conf.all.rp_filter=1
+net.ipv4.tcp_syncookies=1
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv6.conf.all.accept_source_route = 0
+net.ipv4.conf.all.log_martians = 1
+kernel.sysrq=1
+vm.swappiness=10"
+
+##
 # Color definitions
 ##
 RED="\033[1;31m"
@@ -68,7 +92,7 @@ setup_postfix() {
 #
 install_pkgs() {
 	info "Install all packages"
-	sudo $PKG_MANAGER install $(cat ${DOTFILES_DIR}/.sys/debian-pkg) -y
+	sudo $PKG_MANAGER install $(cat ${DOTFILES_DIR}/.sys/debian-pkg | grep -v "^#") -y
 }
 
 #
@@ -102,7 +126,60 @@ setup_grub() {
 
 setup_groups() {
     info "Adding user to different groups"
-    sudo usermod -a -G kvm,libvirt,libvirt-qemu $USERNAME
+    sudo usermod -a -G adm $USERNAME
+}
+
+## TESTING ##
+install_paper() {
+    info "Installing Paper Icon Theme"
+    /bin/wget -q $PAPER_URL -P /tmp
+    sudo dpkg -i /tmp/paper*.deb
+    sudo rm /tmp/paper*.deb
+}
+
+install_virtualbox() {
+    info "Installing VirtualBox"
+    sudo sh -c "echo $VBOX_REPO > /etc/apt/sources.list.d/vbox.list"
+    /bin/wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | sudo apt-key add -
+    sudo $PKG_MANAGER update && sudo $PKG_MANAGER install virtualbox-6.0 -y
+    sudo gpasswd -a $USERNAME vboxusers
+}
+
+setup_sysctl() {
+    info "Setup Sysctl"
+    sudo sh -c "echo \"$SYSCTL_CONF\" > /etc/sysctl.d/x.conf"
+}
+
+setup_noclear() {
+    info "Setup noclear on getty (TTY1)"
+    sudo mkdir -p /etc/systemd/system/getty@tty1.service.d/
+    sudo sh -c "echo \"[Service]\nTTYVTDisallocate=no\n\" > /etc/systemd/system/getty@tty1.service.d/noclear.conf"
+}
+
+install_polybar() {
+    info "Compiling/Installing Polybar"
+
+    sudo $PKG_MANAGER install \
+    build-essential git cmake cmake-data pkg-config python3-sphinx libcairo2-dev libxcb1-dev \
+    libxcb-util0-dev libxcb-randr0-dev libxcb-composite0-dev python-xcbgen xcb-proto \
+    libxcb-image0-dev libxcb-ewmh-dev libxcb-icccm4-dev \
+    libxcb-xkb-dev libxcb-xrm-dev libxcb-cursor-dev libasound2-dev libpulse-dev i3-wm \
+    libjsoncpp-dev libmpdclient-dev libcurl4-openssl-dev libnl-genl-3-dev
+
+    cd /tmp
+    git clone --recursive https://github.com/polybar/polybar
+    cd polybar
+    mkdir build
+    cd build
+    cmake ..
+    make -j2
+    sudo make install
+    cd
+    rm -rf /tmp/polybar
+}
+
+install_extra() {
+    sudo $PKG_MANAGER install --no-install-recommends pcmanfm -y
 }
 
 main() {
@@ -115,8 +192,14 @@ main() {
     setup_fstrim
     setup_grub
     setup_groups
+    install_paper
+    install_virtualbox
+    setup_sysctl
+    setup_noclear
+    install_polybar
+    install_extra
 
-    info "Done. Have fun!"
+    info "Done. Reboot your system please. Enjoy!"
 
     exit 0
 }
