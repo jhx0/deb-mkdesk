@@ -3,16 +3,16 @@
 ##
 # Variables
 ##
-PKG_MANAGER='apt-get'   	# change this if you need to
+PKG_MANAGER='apt-get'		# change this if you need to
 USERNAME='x'
-HOSTNAME="`hostname -f`"    # change this if you need something special
+HOSTNAME="`hostname -f`"	# change this if you need something special
 DOTFILES_DIR='dots'
 DOTFILES_URL='https://github.com/jhx0/dotfiles.git'
 
 ##
 # Features
 ##
-SSD="YES"                   # is a SSD used?
+SSD="YES"					# is a SSD used?
 VBOX="YES"					# install VirtualBox?
 PAPER="NO"					# install Paper Icon Theme?
 VSCODE="YES"				# install VS Code?
@@ -142,7 +142,7 @@ setup_fstrim() {
 	if [ "$SSD" == "YES" ]; then
 		info "Setup Filesystem Trim"
 		
-	    sudo systemctl enable fstrim.timer
+		sudo systemctl enable fstrim.timer
 	fi
 }
 
@@ -153,16 +153,17 @@ setup_grub() {
 	info "Setup Grub"
 	
 	sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT\=\"quiet\"/GRUB_CMDLINE_LINUX_DEFAULT\=\"\"/g' /etc/default/grub
-	# TEST: disable debian grub theme
+	
 	sudo chmod ugo-x /etc/grub.d/05_debian_theme
-    sudo update-grub2 &>/dev/null
+	
+	sudo update-grub2 &>/dev/null
 }
 
 #
 # setup group membership
 #
 setup_groups() {
-    info "Adding user to different groups"
+	info "Adding user to different groups"
 
 	sudo gpasswd -a $USERNAME adm
 	sudo gpasswd -a $USERNAME wireshark
@@ -202,19 +203,19 @@ install_virtualbox() {
 # setup sysctl.conf
 #
 setup_sysctl() {
-    info "Setup Sysctl"
+	info "Setup Sysctl"
 	
-    sudo sh -c "echo \"$SYSCTL_CONF\" > /etc/sysctl.d/custom.conf"
+	sudo sh -c "echo \"$SYSCTL_CONF\" > /etc/sysctl.d/custom.conf"
 }
 
 #
 # setup noclear on tty1
 #
 setup_noclear() {
-    info "Setup noclear on getty (TTY1)"
+	info "Setup noclear on getty (TTY1)"
 	
-    sudo mkdir -p /etc/systemd/system/getty@tty1.service.d/
-    sudo sh -c "echo \"[Service]\nTTYVTDisallocate=no\n\" > /etc/systemd/system/getty@tty1.service.d/noclear.conf"
+	sudo mkdir -p /etc/systemd/system/getty@tty1.service.d/
+	sudo sh -c "echo \"[Service]\nTTYVTDisallocate=no\n\" > /etc/systemd/system/getty@tty1.service.d/noclear.conf"
 }
 
 #
@@ -250,7 +251,7 @@ install_polybar() {
 install_extras() {
 	info "Installing extras"
 
-    sudo $PKG_MANAGER install --no-install-recommends $EXTRAS -y
+	sudo $PKG_MANAGER install --no-install-recommends $EXTRAS -y
 }
 
 #
@@ -330,27 +331,27 @@ setup_firewall() {
 flush ruleset
 
 table inet filter {
-        chain input {
-                type filter hook input priority 0;
+	chain input {
+		type filter hook input priority 0;
 
-                meta iif lo accept;
+		meta iif lo accept;
 
-                tcp dport 22 accept;
+		tcp dport 22 accept;
 
-                ct state related,established accept;
+		ct state related,established accept;
 
-                reject with icmp type port-unreachable;;
-        }
-        chain forward {
-                type filter hook forward priority 0;
+		reject with icmp type port-unreachable;;
+	}
+	chain forward {
+		type filter hook forward priority 0;
 
-                policy drop;
-        }
-        chain output {
-                type filter hook output priority 0;
+		policy drop;
+	}
+	chain output {
+		type filter hook output priority 0;
 
-                policy accept;
-        }
+		policy accept;
+	}
 }
 EOT
 "
@@ -366,21 +367,21 @@ change_shell() {
 main() {
 	info "Only execute this script once after a fresh install!"
 
-    setup_sudo
-    setup_git
-    setup_dotfiles
-    setup_postfix
-    install_pkgs
-    setup_ntp
-    setup_fstrim
-    setup_grub
-    setup_groups
-    install_paper
-    install_virtualbox
-    setup_sysctl
-    setup_noclear
-    install_polybar
-    install_extras
+	setup_sudo
+	setup_git
+	setup_dotfiles
+	setup_postfix
+	install_pkgs
+	setup_ntp
+	setup_fstrim
+	setup_grub
+	setup_groups
+	install_paper
+	install_virtualbox
+	setup_sysctl
+	setup_noclear
+	install_polybar
+	install_extras
 	install_vscode
 	setup_fonts
 	install_chrome
@@ -389,9 +390,9 @@ main() {
 	setup_firewall
 	change_shell
 
-    info "Done. You can now reboot your system. Enjoy!"
+	info "Done. You can now reboot your system. Enjoy!"
 
-    exit 0
+	exit 0
 }
 
 main
