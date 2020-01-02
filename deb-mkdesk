@@ -1,19 +1,32 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ##
 # Variables
 ##
-PKG_MANAGER='apt-get -qq'   # change this if you need to
-USERNAME=x
-HOSTNAME=`hostname -f`      # change this if you need something special
-SSD="YES"                   # is a SSD used?
+PKG_MANAGER='apt-get'   	# change this if you need to
+USERNAME='x'
+HOSTNAME="`hostname -f`"    # change this if you need something special
 DOTFILES_DIR='dots'
 DOTFILES_URL='https://github.com/jhx0/dotfiles.git'
 
 ##
-# External packages (Different software)
+# Features
+##
+SSD="YES"                   # is a SSD used?
+VBOX="YES"					# install VirtualBox?
+PAPER="NO"					# install Paper Icon Theme?
+VSCODE="YES"				# install VS Code?
+POLYBAR="NO"				# compile/install Polybar?
+CHROME="YES"				# install Google Chrome?
+DOCKER="YES"				# install Docker?
+SALT="YES"					# install Salt Master?
+
+##
+# External packages
 ##
 PAPER_URL='https://snwh.org/paper/download.php?owner=snwh&ppa=ppa&pkg=paper-icon-theme,18.04'
+VSCODE_URL='https://go.microsoft.com/fwlink/?LinkID=760868'
+CHROME_URL='https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb'
 
 ##
 # External repos
@@ -35,6 +48,11 @@ kernel.sysrq=1
 vm.swappiness=10"
 
 ##
+# extra packages
+##
+EXTRAS='pcmanfm lxappearance'
+
+##
 # Color definitions
 ##
 RED="\033[1;31m"
@@ -42,14 +60,14 @@ GREEN="\033[1;32m"
 RESET="\033[0m"
 
 ##
-# Functions
+# Helper functions
 ##
 info() {
     echo -e "[${RED}deb-mkdesk${RESET}] ${GREEN}::${RESET} $1"
 }
 
 ##
-# Main script
+# Main functions
 ##
 
 #
@@ -57,7 +75,8 @@ info() {
 #
 setup_sudo() {
 	info "Setup sudo"
-	su -c "$PKG_MANAGER install sudo && echo \"x ALL=(ALL:ALL) NOPASSWD: ALL\" > /etc/sudoers.d/x"
+	
+	su -c "$PKG_MANAGER install sudo && echo \"${USERNAME} ALL=(ALL:ALL) NOPASSWD: ALL\" > /etc/sudoers.d/x"
 }
 
 #
@@ -65,6 +84,7 @@ setup_sudo() {
 #
 setup_git() {
 	info "Install git"
+	
 	sudo $PKG_MANAGER install git -y
 }
 
@@ -73,6 +93,10 @@ setup_git() {
 #
 setup_dotfiles() {
 	info "Clone and install dotfiles"
+	
+	# clean home directory before deploying the dotfiles
+	rm -rf /home/${USERNAME}/.*
+	
 	git clone $DOTFILES_URL $DOTFILES_DIR &>/dev/null
 	cd dots && ./install && cd ~
 }
@@ -82,6 +106,7 @@ setup_dotfiles() {
 #
 setup_postfix() {
 	info "Installing and configuring Postfix"
+	
 	sudo debconf-set-selections <<< "postfix postfix/mailname string $HOSTNAME"
 	sudo debconf-set-selections <<< "postfix postfix/main_mailer_type string 'Local only'"
 	sudo $PKG_MANAGER install postfix -y
@@ -91,8 +116,12 @@ setup_postfix() {
 # install all packages
 #
 install_pkgs() {
-	info "Install all packages"
-	sudo $PKG_MANAGER install $(cat ${DOTFILES_DIR}/.sys/debian-pkg | grep -v "^#") -y
+	info "Installing all packages"
+	
+	# setup wireshark before package install
+	sudo debconf-set-selections <<< "wireshark-common wireshark-common/install-setuid boolean true"
+	
+	sudo $PKG_MANAGER install $(cat ${DOTFILES_DIR}/.debian/debian-pkg | grep -v "^#") -y
 }
 
 #
@@ -100,6 +129,7 @@ install_pkgs() {
 #
 setup_ntp() {
 	info "Setup NTP Synchronization"
+	
 	sudo timedatectl set-ntp true
 	echo -e "[Time]\nNTP=de.pool.ntp.org\n" | sudo tee /etc/systemd/timesyncd.conf >/dev/null
 	sudo systemctl restart systemd-timesyncd
@@ -109,8 +139,9 @@ setup_ntp() {
 # setup fstrim, if needed
 #
 setup_fstrim() {
-	info "Setup Filesystem Trim"
 	if [ "$SSD" == "YES" ]; then
+		info "Setup Filesystem Trim"
+		
 	    sudo systemctl enable fstrim.timer
 	fi
 }
@@ -120,69 +151,221 @@ setup_fstrim() {
 #
 setup_grub() {
 	info "Setup Grub"
+	
 	sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT\=\"quiet\"/GRUB_CMDLINE_LINUX_DEFAULT\=\"\"/g' /etc/default/grub
+	# TEST: disable debian grub theme
+	sudo chmod ugo-x /etc/grub.d/05_debian_theme
     sudo update-grub2 &>/dev/null
 }
 
+#
+# setup group membership
+#
 setup_groups() {
     info "Adding user to different groups"
-    sudo usermod -a -G adm $USERNAME
+
+	sudo gpasswd -a $USERNAME adm
+	sudo gpasswd -a $USERNAME wireshark
+	sudo gpasswd -a $USERNAME kvm
 }
 
-## TESTING ##
+#
+# install paper icon theme
+#
 install_paper() {
-    info "Installing Paper Icon Theme"
-    /bin/wget -q $PAPER_URL -P /tmp
-    sudo dpkg -i /tmp/paper*.deb
-    sudo rm /tmp/paper*.deb
+	if [ "$PAPER" == "YES" ]; then
+		info "Installing Paper Icon Theme"
+		
+		/bin/wget -q $PAPER_URL -P /tmp
+		sudo dpkg -i /tmp/paper*.deb
+		sudo $PKG_MANAGER install -f -y
+		sudo rm /tmp/paper*.deb
+	fi
 }
 
+#
+# install virtualbox
+#
 install_virtualbox() {
-    info "Installing VirtualBox"
-    sudo sh -c "echo $VBOX_REPO > /etc/apt/sources.list.d/vbox.list"
-    /bin/wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | sudo apt-key add -
-    sudo $PKG_MANAGER update && sudo $PKG_MANAGER install virtualbox-6.0 -y
-    sudo gpasswd -a $USERNAME vboxusers
+	if [ "$VBOX" == "YES" ]; then
+		info "Installing VirtualBox"
+		
+		sudo sh -c "echo $VBOX_REPO > /etc/apt/sources.list.d/vbox.list"
+		/bin/wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | sudo apt-key add -
+		sudo $PKG_MANAGER update && sudo $PKG_MANAGER install virtualbox-6.1 -y
+		sudo $PKG_MANAGER install -f -y
+		sudo gpasswd -a $USERNAME vboxusers
+	fi
 }
 
+#
+# setup sysctl.conf
+#
 setup_sysctl() {
     info "Setup Sysctl"
-    sudo sh -c "echo \"$SYSCTL_CONF\" > /etc/sysctl.d/x.conf"
+	
+    sudo sh -c "echo \"$SYSCTL_CONF\" > /etc/sysctl.d/custom.conf"
 }
 
+#
+# setup noclear on tty1
+#
 setup_noclear() {
     info "Setup noclear on getty (TTY1)"
+	
     sudo mkdir -p /etc/systemd/system/getty@tty1.service.d/
     sudo sh -c "echo \"[Service]\nTTYVTDisallocate=no\n\" > /etc/systemd/system/getty@tty1.service.d/noclear.conf"
 }
 
+#
+# build/install polybar
+#
 install_polybar() {
-    info "Compiling/Installing Polybar"
+	if [ "$POLYBAR" == "YES" ]; then
+		info "Compiling/Installing Polybar"
 
-    sudo $PKG_MANAGER install \
-    build-essential git cmake cmake-data pkg-config python3-sphinx libcairo2-dev libxcb1-dev \
-    libxcb-util0-dev libxcb-randr0-dev libxcb-composite0-dev python-xcbgen xcb-proto \
-    libxcb-image0-dev libxcb-ewmh-dev libxcb-icccm4-dev \
-    libxcb-xkb-dev libxcb-xrm-dev libxcb-cursor-dev libasound2-dev libpulse-dev i3-wm \
-    libjsoncpp-dev libmpdclient-dev libcurl4-openssl-dev libnl-genl-3-dev
+		sudo $PKG_MANAGER install \
+			build-essential git cmake cmake-data pkg-config python3-sphinx libcairo2-dev libxcb1-dev \
+			libxcb-util0-dev libxcb-randr0-dev libxcb-composite0-dev python-xcbgen xcb-proto \
+			libxcb-image0-dev libxcb-ewmh-dev libxcb-icccm4-dev \
+			libxcb-xkb-dev libxcb-xrm-dev libxcb-cursor-dev libasound2-dev libpulse-dev i3-wm \
+			libjsoncpp-dev libmpdclient-dev libcurl4-openssl-dev libnl-genl-3-dev
 
-    cd /tmp
-    git clone --recursive https://github.com/polybar/polybar
-    cd polybar
-    mkdir build
-    cd build
-    cmake ..
-    make -j2
-    sudo make install
-    cd
-    rm -rf /tmp/polybar
+		cd /tmp
+		git clone --recursive https://github.com/polybar/polybar
+		cd polybar
+		mkdir build
+		cd build
+		cmake ..
+		make -j2
+		sudo make install
+		cd
+		rm -rf /tmp/polybar
+	fi
 }
 
-install_extra() {
-    sudo $PKG_MANAGER install --no-install-recommends pcmanfm -y
+#
+# install extras
+#
+install_extras() {
+	info "Installing extras"
+
+    sudo $PKG_MANAGER install --no-install-recommends $EXTRAS -y
+}
+
+#
+# install visual studio code
+#
+install_vscode() {
+	if [ "$VSCODE" == "YES" ]; then
+		info "Installing Visual Studio Code"
+		
+		wget -q $VSCODE_URL -P /tmp
+		sudo dpkg -i /tmp/code*.deb
+		sudo $PKG_MANAGER install -f -y
+		sudo rm -rf /tmp/code*.deb
+	fi
+}
+
+#
+# configure fonts
+#
+setup_fonts() {
+	info "Configuring fonts"
+
+	sudo ln -sf /usr/share/fontconfig/conf.avail/10-hinting-slight.conf /etc/fonts/conf.d/
+	sudo ln -sf /usr/share/fontconfig/conf.avail/10-sub-pixel-rgb.conf /etc/fonts/conf.d/
+}
+
+#
+# install google chrome
+#
+install_chrome() {
+	if [ "$CHROME" == "YES" ]; then
+		info "Installing Google Chrome"
+	
+		wget -q $CHROME_URL -P /tmp
+		sudo dpkg -i /tmp/google*.deb
+		sudo $PKG_MANAGER install -f -y
+		sudo rm -rf /tmp/google*.deb
+	fi
+}
+
+install_docker() {
+	if [ "$DOCKER" == "YES" ]; then
+		info "Installing Docker"
+	
+		curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
+		
+		sudo sh -c "echo \"deb [arch=amd64] https://download.docker.com/linux/debian buster stable\" > /etc/apt/sources.list.d/docker.list"
+		
+		sudo $PKG_MANAGER update
+		sudo $PKG_MANAGER install docker-ce docker-ce-cli containerd.io -y
+
+		sudo gpasswd -a $USERNAME docker
+	fi
+}
+
+install_salt() {
+	if [ "$SALT" == "YES" ]; then
+		info "Installing Salt Master"
+
+		wget -O - https://repo.saltstack.com/py3/debian/10/amd64/latest/SALTSTACK-GPG-KEY.pub | sudo apt-key add -
+
+		sudo sh -c "echo \"deb http://repo.saltstack.com/py3/debian/10/amd64/latest buster main\" > /etc/apt/sources.list.d/saltstack.list"
+
+		sudo $PKG_MANAGER update
+		sudo $PKG_MANAGER install salt-master -y
+	fi
+}
+
+setup_firewall() {
+	info "Setting up firewall"
+	
+	# make sure nftables are installed
+	sudo $PKG_MANAGER install nftables -y
+	
+	sudo sh -c "cat<<EOT >/etc/nftables.conf
+#!/usr/sbin/nft -f
+flush ruleset
+
+table inet filter {
+        chain input {
+                type filter hook input priority 0;
+
+                meta iif lo accept;
+
+                tcp dport 22 accept;
+
+                ct state related,established accept;
+
+                reject with icmp type port-unreachable;;
+        }
+        chain forward {
+                type filter hook forward priority 0;
+
+                policy drop;
+        }
+        chain output {
+                type filter hook output priority 0;
+
+                policy accept;
+        }
+}
+EOT
+"
+	sudo nft -f /etc/nftables.conf
+}
+
+change_shell() {
+	info "Changing default shell to ZSH, enter your password: "
+	
+	chsh -s /usr/bin/zsh
 }
 
 main() {
+	info "Only execute this script once after a fresh install!"
+
     setup_sudo
     setup_git
     setup_dotfiles
@@ -197,9 +380,16 @@ main() {
     setup_sysctl
     setup_noclear
     install_polybar
-    install_extra
+    install_extras
+	install_vscode
+	setup_fonts
+	install_chrome
+	install_docker
+	install_salt
+	setup_firewall
+	change_shell
 
-    info "Done. Reboot your system please. Enjoy!"
+    info "Done. You can now reboot your system. Enjoy!"
 
     exit 0
 }
