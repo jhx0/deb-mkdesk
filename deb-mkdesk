@@ -5,7 +5,7 @@
 ##
 PKG_MANAGER='apt-get'		# change this if you need to
 USERNAME='x'
-HOSTNAME="`hostname -f`"	# change this if you need something special
+HOSTNAME="`hostname -f`"	# change this only if you need something special
 DOTFILES_DIR='dots'
 DOTFILES_URL='https://github.com/jhx0/dotfiles.git'
 
@@ -20,6 +20,8 @@ POLYBAR="NO"				# compile/install Polybar?
 CHROME="YES"				# install Google Chrome?
 DOCKER="YES"				# install Docker?
 SALT="YES"					# install Salt Master?
+NVIDIA="NO"					# install Nvidia video driver?
+INTEL="NO"					# install Intel video driver?
 
 ##
 # External packages
@@ -118,7 +120,7 @@ setup_postfix() {
 install_pkgs() {
 	info "Installing all packages"
 	
-	# setup wireshark before package install
+	# setup wireshark-common before package install
 	sudo debconf-set-selections <<< "wireshark-common wireshark-common/install-setuid boolean true"
 	
 	sudo $PKG_MANAGER install $(cat ${DOTFILES_DIR}/.debian/debian-pkg | grep -v "^#") -y
@@ -359,9 +361,25 @@ EOT
 }
 
 change_shell() {
-	info "Changing default shell to ZSH, enter your password: "
+	info "Changing default shell to ZSH. Enter your password: "
 	
 	chsh -s /usr/bin/zsh
+}
+
+install_nvidia() {
+	if [ "$NVIDIA" == "YES" ]; then
+		info "Installing Nvidia video driver"
+
+		sudo $PKG_MANAGER nvidia-driver nvidia-settings -y
+	fi
+}
+
+install_intel() {
+	if [ "$INTEL" == "YES" ]; then
+		info "Installing Intel video driver"
+
+		sudo $PKG_MANAGER xserver-xorg-video-intel -y
+	fi
 }
 
 main() {
@@ -387,6 +405,8 @@ main() {
 	install_chrome
 	install_docker
 	install_salt
+	install_nvidia
+	install_intel
 	setup_firewall
 	change_shell
 
