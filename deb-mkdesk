@@ -3,7 +3,7 @@
 ##
 # Variables
 ##
-PKG_MANAGER='apt-get'		# change this if you need to
+PKG_MANAGER='apt'			# change this if you need to
 USERNAME='x'
 HOSTNAME="`hostname -f`"	# change this only if you need something special
 DOTFILES_DIR='dots'
