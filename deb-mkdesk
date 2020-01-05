@@ -12,15 +12,15 @@ DOTFILES_URL='https://github.com/jhx0/dotfiles.git'
 ##
 # Features
 ##
-SSD="YES"					# is a SSD used?
-VBOX="YES"					# install VirtualBox?
-VSCODE="YES"				# install VS Code?
-POLYBAR="NO"				# compile/install Polybar?
-CHROME="YES"				# install Google Chrome?
-DOCKER="YES"				# install Docker?
-SALT="YES"					# install Salt Master?
-NVIDIA="NO"					# install Nvidia video driver?
-INTEL="NO"					# install Intel video driver?
+SSD="YES"                   # is a SSD used?
+VBOX="YES"                  # install VirtualBox?
+VSCODE="YES"                # install VS Code?
+POLYBAR="NO"                # compile/install Polybar?
+CHROME="YES"                # install Google Chrome?
+DOCKER="YES"                # install Docker?
+SALT="YES"                  # install Salt Master?
+NVIDIA="NO"                 # install Nvidia video driver?
+INTEL="NO"                  # install Intel video driver?
 
 ##
 # External packages
