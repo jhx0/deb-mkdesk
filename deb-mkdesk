@@ -14,7 +14,6 @@ DOTFILES_URL='https://github.com/jhx0/dotfiles.git'
 ##
 SSD="YES"					# is a SSD used?
 VBOX="YES"					# install VirtualBox?
-PAPER="NO"					# install Paper Icon Theme?
 VSCODE="YES"				# install VS Code?
 POLYBAR="NO"				# compile/install Polybar?
 CHROME="YES"				# install Google Chrome?
@@ -173,27 +172,13 @@ setup_groups() {
 }
 
 #
-# install paper icon theme
-#
-install_paper() {
-	if [ "$PAPER" == "YES" ]; then
-		info "Installing Paper Icon Theme"
-		
-		/bin/wget -q $PAPER_URL -P /tmp
-		sudo dpkg -i /tmp/paper*.deb
-		sudo $PKG_MANAGER install -f -y
-		sudo rm /tmp/paper*.deb
-	fi
-}
-
-#
 # install virtualbox
 #
 install_virtualbox() {
 	if [ "$VBOX" == "YES" ]; then
 		info "Installing VirtualBox"
 		
-		sudo sh -c "echo $VBOX_REPO > /etc/apt/sources.list.d/vbox.list"
+		sudo sh -c "echo \"$VBOX_REPO\" > /etc/apt/sources.list.d/vbox.list"
 		/bin/wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | sudo apt-key add -
 		sudo $PKG_MANAGER update && sudo $PKG_MANAGER install virtualbox-6.1 -y
 		sudo $PKG_MANAGER install -f -y
@@ -394,7 +379,6 @@ main() {
 	setup_fstrim
 	setup_grub
 	setup_groups
-	install_paper
 	install_virtualbox
 	setup_sysctl
 	setup_noclear
